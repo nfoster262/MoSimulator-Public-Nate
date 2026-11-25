@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be1409438a6844eea96767966da7413b, type: 3}
+  m_Name: MECORobotics
+  m_EditorClassIdentifier: 
+  teamNumber: 8324
+  teamName: MECO Robotics
+  robotImage: {fileID: 21300000, guid: 25f8187236fd24125946aeb591e9425c, type: 3}
+  mainRobot:
+    displayName: Remy (2026)
+    robotPrefab: {fileID: 7237288529687543788, guid: 8b0f30d4eecfa4e379fca325aedebdf8,
+      type: 3}
+    mainMenuPrefab: {fileID: 260607942106281722, guid: fc650740e15fc4d7f95f4246407eac79,
+      type: 3}
+    spawnSelectionPrefab: {fileID: 6730725240184052253, guid: c7440ddffa25a4de4b1459e316e7aa03,
+      type: 3}
+    preloadGamePiece: {fileID: 2886892246794840118, guid: 96adc4350dc09d942b6bf56af73710ca,
+      type: 3}
+    tutorialCards:
+    - {fileID: 6047362565163993743, guid: 107cc705eea484a86a7cd4f8f31db752, type: 3}
+    - {fileID: 4412890183607161678, guid: 389b76b78dfd041d18155ea083f02fee, type: 3}
+    - {fileID: 5124527630923467253, guid: 8b088d61412e0481f966af23512b48cf, type: 3}
+  alternateRobots: []

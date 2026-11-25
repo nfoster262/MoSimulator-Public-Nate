@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e031b48ae5c148f090b1cba3d1097ada, type: 3}
+  m_Name: MECO 8324 Remy
+  m_EditorClassIdentifier: 
+  modpackName: MECO 8324 Remy
+  modpackVersion: 1.6.0
+  authorName: MECO Robotics 8324
+  description: 'Team 8324 Remy (2026): robot-code driver controls, swerve drive,
+    rack intake, adjustable hood and hopper net.'
+  thumbnail: {fileID: 21300000, guid: 25f8187236fd24125946aeb591e9425c, type: 3}
+  robots:
+  - {fileID: 11400000, guid: 79b643d8683d042c3a44997c99645ee7, type: 2}
