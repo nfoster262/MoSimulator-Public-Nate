@@ -2,7 +2,7 @@
 
 Local MoSim Rebuilt robot mod using the supplied 8324 FBX and the supplied 2026-Rebuilt shooter calibration tables and drivetrain dimensions.
 
-## Controls (revision 1.6.0)
+## Controls (revision 1.11.0)
 
 Remy has its own driver bindings based on `2026-Rebuilt/RobotContainer.java`. Xbox names are shown; other gamepads use the corresponding face-button positions. Existing global Rebuilt binding overrides do not replace these Remy defaults.
 
@@ -23,9 +23,48 @@ Remy has its own driver bindings based on `2026-Rebuilt/RobotContainer.java`. Xb
 | Stop shooter | O | B / east |
 | Pause | Escape | Select / View |
 
-For an aimed shot, hold **A + RB** (keyboard **K + E**). For a preset shot, press **X** or **Y**, then hold **RB**. Aiming and feeding are separate, as in the real driver code. Releasing A stops the calculated shot. The intake remains deployed until stowed or feeding starts. Aimed feeding waits for heading and hood alignment; preset feeding does not auto-aim. Driving uses MoSim’s normal camera orientation, camera flip, and sensitivity settings.
+For an aimed shot, hold **A + RB** (keyboard **K + E**). For a preset shot, press **X** or **Y**, then hold **RB**. Aiming and feeding are separate, as in the real driver code. Releasing A stops the calculated shot. While RB is held, the intake runs continuously. Feeding waits for initial readiness, then stays active until release or shooter stop. The rack retracts toward 0.13 m extension at a commanded 0.10 m/s; releasing RB deploys it again. These are the supplied Java ShotIntakeSettings defaults, not live dashboard preferences. Aimed feeding initially waits for heading and hood alignment; preset feeding does not auto-aim. Driving uses MoSim’s normal camera orientation, camera flip, and sensitivity settings.
 
 This maps the primary driver controller. The separate copilot-only bindings from the Java project and climbing are not implemented.
+
+## Revision 1.11.0
+
+- Sloped the hidden front fuel-contact plate away from the upper-roller pinch. A fuel-only feed guide engages near the retracted feeding position to clear the remaining perched fuel without blocking a full rack during retraction.
+- Matched the supplied `agitateAndFeed`, `VolleyFeedGate`, and `ShotIntakeSettings` behavior: steady intake during RB hold, initial readiness followed by continuous feed, 0.10 m/s rack target motion to 0.13 m extension, and redeployment on release. Removed the earlier timed upper-roller reversal. Roller speeds remain MoSim approximations of the voltage-driven real mechanism.
+- Packed aimed test: 50 fuel tracked at feed start, all 50 observed launching, zero remaining jammed; 48 of those scored. Packed high-angle test: 49 tracked, 40 launches observed, zero remaining jammed. The intake-mouth count and sampled launch detector do not establish perfect overflow retention. Standard preloads scored 8/8.
+- Four fuel placed at the front plate dropped below the perched region during continuous intake. Empty flat-ground driving, reversal, and turning recorded 68 wheel-contact samples with all four wheels grounded and positively loaded; maximum sampled pitch was 0.274 degrees and roll 0.101 degrees. Wheel geometry was left unchanged because this test did not reproduce a single-point balance fault.
+
+## Revision 1.10.0
+
+- Added a thin inward-sloping, fuel-only contact on the hopper side of the intake crash bar. It prevents the nearby roller/wall contact from supporting fuel at bar height and directs it back into the hopper.
+- This contact yields during feeding and reverse so the retracting rack cannot pinch rigid simulated fuel against the conveyor.
+- The bar's CAD appearance and field/robot collision envelope are unchanged.
+- Standard shooting scored 8/8 preloads. Packed aimed and high-hood tests completed with no fuel remaining jammed.
+- A four-fuel placement test compared idle and held-RT behavior. The previous setup produced stationary samples at the bar; the revised contact produced none during the powered test interval.
+
+## Revision 1.9.0
+
+- Strengthened the hood position drive against packed-fuel pressure. Previously, a full load held the hood about 3° away from its requested angle and prevented the existing aim-ready check from enabling feed. The alignment check remains in place.
+- Increased the main shooter wheel’s compliant contact depth to preserve a usable path for MoSim’s rigid fuel at high hood angles.
+- Shortened the upper guide’s rear edge to leave room for fuel exiting at the maximum hood angle.
+- Added a second invisible, fuel-only guide over the front indexer roller. It directs fuel into the feeder entrance instead of letting the last row sit on top of the roller beneath the camera.
+- Feeding now releases the holding floor immediately, allowing the remaining fuel to reach the rollers while the existing clearing pulse frees the rack.
+- Moved the eight preloads clear of the new guide; checked that they do not overlap it at spawn.
+- Full-hopper validation now collects 48 floor balls with eight preloads onboard before shooting, rather than treating the earlier 24-ball test as full capacity. The final aimed run launched and scored all 52 balls counted at feed start, with none remaining jammed. The 17.64° ferry run also left no fuel jammed; 51 launches were observed from its 52-ball starting load. Scoring is tracked separately from clearing a jam.
+
+## Revision 1.8.0
+
+- Added an invisible, sloped fuel guide across the pocket between the Limelight mount and flywheel. It directs loose fuel into the shooter channel rather than letting it perch above the flywheel.
+- The guide only collides with fuel. It adds no visible printed parts and does not change contacts with the field or other robots.
+- In a six-fuel drop test, three pieces remained perched with the previous geometry; all six cleared the pocket with the guide. Close-range shooting scored 8/8 preloads, and loaded feeding scored 24/24 fuel.
+
+## Revision 1.7.0
+
+- Increased the upper intake's effective contact clearance for MoSim's rigid fuel. This prevents the powered roller from pinning approaching fuel against the carpet; the CAD roller visuals retain their original position.
+- Held-RT pickup collected 16/16 fuel in each tested slow, medium, and full-stick pass (approximately 0.77, 2.28, and 5.00 m/s peak speeds). The previous contact geometry collected 8/16 at medium speed and 9/16 at full speed. A deployed, unpowered medium-speed comparison collected 0/16.
+- During sustained feeding, the upper roller briefly reverses to release fuel perched on top, then resumes normal transfer.
+- Loaded turning retained all 24 added fuel within the hopper, with deployed rack drift below 0.3 mm. A loaded feed test scored all 24 fuel after the clearing-pulse change.
+- Keep RT held while driving into fuel; releasing and pressing the trigger again is not required.
 
 ## Revision 1.6.0
 

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: MECO 8324 Remy
   m_EditorClassIdentifier: 
   modpackName: MECO 8324 Remy
-  modpackVersion: 1.6.0
+  modpackVersion: 1.11.0
   authorName: MECO Robotics 8324
   description: 'Team 8324 Remy (2026): robot-code driver controls, swerve drive,
     rack intake, adjustable hood and hopper net.'

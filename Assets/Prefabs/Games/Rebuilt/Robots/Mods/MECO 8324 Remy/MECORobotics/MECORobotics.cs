@@ -25,10 +25,12 @@ public class MECORobotics : RebuiltRobotBase
     private RebuiltAutoAimController aim;
     private ConfigurableJoint hoodServo;
     private BoxCollider indexerHold;
-    private Collider intakeHold, intakeFloor;
+    private Collider intakeHold, intakeFloor, crashBarDeflector, frontFeedGuide;
     private float shotRps;
     private bool feeding;
     private float readyDuration;
+    private float rackTargetMeters;
+    private bool wasFeedHeld;
     private readonly Collider[] exitContacts = new Collider[64];
     private readonly System.Collections.Generic.Dictionary<Rigidbody,float> released = new System.Collections.Generic.Dictionary<Rigidbody,float>();
     // Measured distance/velocity and hood tables from 2026-Rebuilt ShooterConstants.
@@ -40,6 +42,8 @@ public class MECORobotics : RebuiltRobotBase
         aim=GetComponent<RebuiltAutoAimController>();
         intakeHold=intakeRack.transform.Find("Hopper Fuel Contacts/Intake Holding Surface")?.GetComponent<Collider>();
         intakeFloor=intakeRack.transform.Find("Hopper Fuel Contacts/Sliding floor")?.GetComponent<Collider>();
+        frontFeedGuide=intakeRack.transform.Find("Front Feed Guide")?.GetComponent<Collider>();
+        crashBarDeflector=intakeRack.transform.Find("Crash Bar Fuel Deflector")?.GetComponent<Collider>();
         // Approximate the stopped indexer's foam grip; open only on feed/eject.
         var hold = new GameObject("Indexer Holding Surface");
         hold.layer=LayerMask.NameToLayer("Robot");hold.transform.SetParent(transform,false);
@@ -51,7 +55,8 @@ public class MECORobotics : RebuiltRobotBase
         hoodServo.angularXMotion=ConfigurableJointMotion.Limited;
         hoodServo.lowAngularXLimit=new SoftJointLimit{limit=-18.64f};
         hoodServo.highAngularXLimit=new SoftJointLimit{limit=1};
-        hoodServo.angularXDrive=new JointDrive{positionSpring=10000,positionDamper=200,maximumForce=500};
+        // Keep packed rigid fuel from holding the hood outside the aim-ready tolerance.
+        hoodServo.angularXDrive=new JointDrive{positionSpring=50000,positionDamper=500,maximumForce=2500};
         Scheduler.AddSubsystems(Control);
         Scheduler.AddProtectedSystem(ApplyMechanisms);
     }
@@ -89,16 +94,28 @@ public class MECORobotics : RebuiltRobotBase
         // A selects the calculated shot; RB feeds separately, matching RobotContainer.java.
         bool ready=speed>0 && (!aiming || (Mathf.Abs(aim.GetRotationError())<2f &&
             Mathf.Abs(Mathf.DeltaAngle(hood.transform.localEulerAngles.x,hoodDegrees))<1f));
-        readyDuration=ready?readyDuration+Time.fixedDeltaTime:0;
-        bool feed=AutoPass && readyDuration>=.15f;
-        if(feed)deployed=false;
+        bool feedHeld=AutoPass;
+        readyDuration=feedHeld && ready?readyDuration+Time.fixedDeltaTime:0;
+        // VolleyFeedGate latches after initial readiness until RB is released.
+        bool feed=feedHeld && speed>0 && (feeding || readyDuration>=.15f);
+        if(feedHeld || wasFeedHeld)deployed=true;
+        if(feed && !feeding)rackTargetMeters=Mathf.Clamp(intakeRack.transform.localPosition.z+intakeTravelMeters,0,intakeTravelMeters);
+        // ShotIntakeSettings defaults: hold 0.13 m, retract at 0.10 m/s.
+        rackTargetMeters=feed?Mathf.MoveTowards(rackTargetMeters,.13f,.10f*Time.fixedDeltaTime):(deployed?intakeTravelMeters:0);
+        wasFeedHeld=feedHeld;
         bool eject=RobotSpecial2;
         bool collect=IntakeAction;
-        // The compliant guide holds stopped fuel; release it for collection, reverse, and retracted feeding.
-        if(intakeFloor)intakeFloor.enabled=!collect && !eject && (!feed || intakeRack.transform.localPosition.z>-.25f);
+        // The compliant floor holds stopped fuel; release it immediately for collection, reverse, or feeding.
+        if(intakeFloor)intakeFloor.enabled=!collect && !eject && !feed;
         if(intakeHold)intakeHold.enabled=!collect && !eject && !feed;
+        // The thin bar contact sheds perched fuel, but yields as the rack feeds rigid simulated balls.
+        if(crashBarDeflector)crashBarDeflector.enabled=!feed && !eject;
+        // Guide the last fuel off the upper roller only after the loaded rack retracts.
+        if(frontFeedGuide)frontFeedGuide.enabled=feed && !eject && intakeRack.transform.localPosition.z<-.15f;
         feeding=feed;shotRps=speed;indexerHold.enabled=!feed && !eject;
-        for(int i=0;i<intakeRollers.Length;i++)intakeRollers[i].SetRpm((eject?-650:((collect || feed)?650:0))*(i==0?1:-1));
+        // agitateAndFeed keeps the intake running steadily, including during spin-up.
+        for(int i=0;i<intakeRollers.Length;i++)intakeRollers[i].SetRpm(
+            (eject?-650:((collect || feedHeld)?650:0))*(i==0?1:-1));
         Set(conveyorRollers,eject?600:((collect || feed)?-600:0));
         for(int i=0;i<indexerRollers.Length;i++)indexerRollers[i].SetRpm((eject?-1:1)*(feed || eject?((i==0 || i==5)?600:-600):0));
         for(int i=0;i<shooterRollers.Length;i++)shooterRollers[i].SetRpm(speed*60*(i==0?1:-48f/54f));
@@ -106,8 +123,8 @@ public class MECORobotics : RebuiltRobotBase
     private void ApplyMechanisms()
     {
         bool enabled=BaseGameManager.Instance && BaseGameManager.Instance.RobotState==RobotState.Enabled;
-        if(!enabled){indexerHold.enabled=true;if(intakeHold)intakeHold.enabled=true;if(intakeFloor)intakeFloor.enabled=true;Set(intakeRollers,0);Set(conveyorRollers,0);Set(indexerRollers,0);Set(shooterRollers,0);return;}
-        intakeRack.SetLinearTarget((deployed?intakeTravelMeters:0)/.0254f).withAxis(JointAxis.Z).useAutomaticStartingOffset();
+        if(!enabled){if(frontFeedGuide)frontFeedGuide.enabled=false;if(crashBarDeflector)crashBarDeflector.enabled=true;feeding=false;readyDuration=0;wasFeedHeld=false;indexerHold.enabled=true;if(intakeHold)intakeHold.enabled=true;if(intakeFloor)intakeFloor.enabled=true;Set(intakeRollers,0);Set(conveyorRollers,0);Set(indexerRollers,0);Set(shooterRollers,0);return;}
+        intakeRack.SetLinearTarget(rackTargetMeters/.0254f).withAxis(JointAxis.Z).useAutomaticStartingOffset();
         hoodServo.targetRotation=Quaternion.Inverse(Quaternion.Euler(Mathf.Clamp(hoodDegrees,0,17.64f),0,0));
         CalibrateReleasedFuel();
     }
