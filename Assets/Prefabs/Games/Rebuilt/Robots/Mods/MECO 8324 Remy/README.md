@@ -2,7 +2,7 @@
 
 Local MoSim Rebuilt robot mod using the supplied 8324 FBX and the supplied 2026-Rebuilt shooter calibration tables and drivetrain dimensions.
 
-## Controls (revision 1.11.0)
+## Controls (revision 1.13.0)
 
 Remy has its own driver bindings based on `2026-Rebuilt/RobotContainer.java`. Xbox names are shown; other gamepads use the corresponding face-button positions. Existing global Rebuilt binding overrides do not replace these Remy defaults.
 
@@ -26,6 +26,20 @@ Remy has its own driver bindings based on `2026-Rebuilt/RobotContainer.java`. Xb
 For an aimed shot, hold **A + RB** (keyboard **K + E**). For a preset shot, press **X** or **Y**, then hold **RB**. Aiming and feeding are separate, as in the real driver code. Releasing A stops the calculated shot. While RB is held, the intake runs continuously. Feeding waits for initial readiness, then stays active until release or shooter stop. The rack retracts toward 0.13 m extension at a commanded 0.10 m/s; releasing RB deploys it again. These are the supplied Java ShotIntakeSettings defaults, not live dashboard preferences. Aimed feeding initially waits for heading and hood alignment; preset feeding does not auto-aim. Driving uses MoSim’s normal camera orientation, camera flip, and sensitivity settings.
 
 This maps the primary driver controller. The separate copilot-only bindings from the Java project and climbing are not implemented.
+
+## Revision 1.13.0
+
+- Reduced reverse-acceleration nose dive by lowering the simulated chassis center of mass from 0.16 to 0.08 m, without shifting it forward/rearward or changing mass, wheel geometry, ground clearance, or steering settings.
+- Added bounded pitch spring/damping support only when all four wheels contact nearly horizontal ground at matching heights (within 15 mm). It disengages on slopes, uneven contact, or loss of wheel contact; chassis rotation is not locked.
+- Controller tests cover full-stick reverse, release/braking, forward acceleration, and repeated reverse with the intake stowed/deployed and 24 fuel onboard. The loaded test retained all 24 fuel and kept positive support at every wheel; peak pitch was about 0.62 degrees. Bump passage still allows the robot to follow the terrain normally.
+
+## Revision 1.12.0
+
+- Made manual controller steering more responsive near center with a 6% neutral zone and a continuous response curve. Reads only gamepad axes assigned to this robot's Rotate action and retains the MoSim turn-speed slider. Keyboard turning, camera-relative translation, and automatic aiming keep their normal paths.
+- Maximum turn speed remains 720 degrees/second at 100%. Controller tests cover small stick positions, progressive increases, left/right reversals, release, combined driving/turning, and +/-4% neutral noise.
+- Combined 225 fixed CAD renderers into 21 groups, reducing visible renderers from 666 to 462. All 106 material/body triangle counts and all 71 colliders are preserved. Transparent panels, moving rollers, and alliance bumpers retain their separate renderers.
+- Enabled consistent physics interpolation for the chassis, rack, and hood to smooth rendered motion between physics updates. Editor frame-time measurements vary, so this does not guarantee removal of every system-level hitch.
+- Virtual-gamepad regression testing retained full turn speed and zero sustained neutral drift. Standard aimed shooting scored 8/8 preloads. Physical Xbox-controller feel still needs testing in the installed game.
 
 ## Revision 1.11.0
 

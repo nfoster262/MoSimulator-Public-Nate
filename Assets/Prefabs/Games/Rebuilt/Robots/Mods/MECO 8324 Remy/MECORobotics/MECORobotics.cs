@@ -31,6 +31,9 @@ public class MECORobotics : RebuiltRobotBase
     private float readyDuration;
     private float rackTargetMeters;
     private bool wasFeedHeld;
+    private Rigidbody chassis;
+    private WheelCollider[] driveWheels;
+    private RobotFramework.Controllers.Drivetrain.DriveController steeringDrive;
     private readonly Collider[] exitContacts = new Collider[64];
     private readonly System.Collections.Generic.Dictionary<Rigidbody,float> released = new System.Collections.Generic.Dictionary<Rigidbody,float>();
     // Measured distance/velocity and hood tables from 2026-Rebuilt ShooterConstants.
@@ -40,6 +43,8 @@ public class MECORobotics : RebuiltRobotBase
     protected override void Init()
     {
         aim=GetComponent<RebuiltAutoAimController>();
+        chassis=GetComponent<Rigidbody>();driveWheels=GetComponentsInChildren<WheelCollider>();
+        steeringDrive=GetComponent<RobotFramework.Controllers.Drivetrain.DriveController>();
         intakeHold=intakeRack.transform.Find("Hopper Fuel Contacts/Intake Holding Surface")?.GetComponent<Collider>();
         intakeFloor=intakeRack.transform.Find("Hopper Fuel Contacts/Sliding floor")?.GetComponent<Collider>();
         frontFeedGuide=intakeRack.transform.Find("Front Feed Guide")?.GetComponent<Collider>();
@@ -62,6 +67,10 @@ public class MECORobotics : RebuiltRobotBase
     }
     protected override void LateInit()
     {
+        // GenericJoint initializes its bodies without interpolation; keep all robot parts in sync.
+        GetComponent<Rigidbody>().interpolation=RigidbodyInterpolation.Interpolate;
+        intakeRack.GetComponent<Rigidbody>().interpolation=RigidbodyInterpolation.Interpolate;
+        hood.GetComponent<Rigidbody>().interpolation=RigidbodyInterpolation.Interpolate;
         // These are parts of one robot, so the rack/hood must not fight its own frame.
         var all=GetComponentsInChildren<Collider>();
         var list=new System.Collections.Generic.List<Collider>();
@@ -79,6 +88,7 @@ public class MECORobotics : RebuiltRobotBase
         if(RobotSpecial.WasTriggered()){presetSpeed=55;presetHood=17.64f;}
         if(RobotSpecial3.WasTriggered()){presetSpeed=0;presetHood=0;}
         bool aiming=OuttakeAction;
+        if(!aiming)ApplyControllerSteering();
         if(wasAiming && !aiming){presetSpeed=0;presetHood=0;}
         wasAiming=aiming;
         float speed=presetSpeed;hoodDegrees=presetHood;
@@ -120,13 +130,52 @@ public class MECORobotics : RebuiltRobotBase
         for(int i=0;i<indexerRollers.Length;i++)indexerRollers[i].SetRpm((eject?-1:1)*(feed || eject?((i==0 || i==5)?600:-600):0));
         for(int i=0;i<shooterRollers.Length;i++)shooterRollers[i].SetRpm(speed*60*(i==0?1:-48f/54f));
     }
+    private void ApplyControllerSteering()
+    {
+        // Read only axes assigned to this robot's Rotate action, never another player's pad.
+        // The default stick-axis dead zone discards small steering corrections before the action.
+        float raw=0;
+        foreach(var control in RotateAction.controls)
+            if(control.device is UnityEngine.InputSystem.Gamepad && control is UnityEngine.InputSystem.Controls.AxisControl axis)
+            {
+                float value=axis.ReadUnprocessedValue();
+                int binding=UnityEngine.InputSystem.InputActionRebindingExtensions.GetBindingIndexForControl(RotateAction,axis);
+                if(binding>=0 && (RotateAction.bindings[binding].effectiveProcessors??"").IndexOf("invert",System.StringComparison.OrdinalIgnoreCase)<0)value=-value;
+                if(Mathf.Abs(value)>Mathf.Abs(raw))raw=value;
+            }
+        float native=RotateAction.ReadValue<float>();
+        if(RotateAction.activeControl?.device is UnityEngine.InputSystem.Keyboard && Mathf.Abs(native)>.001f)return;
+        // A continuous curve with a 6% neutral zone gives useful fine-stick response.
+        float amount=Mathf.Clamp01((Mathf.Abs(raw)-.06f)/.94f);
+        float response=Mathf.Sign(raw)*amount*(1.3f-.3f*amount);
+        float scale=steeringDrive.GetMaxOmega()*RotationSpeedMultiplier;
+        // Add only the correction to MoSim's normal turn command. Translation and auto-aim stay native.
+        steeringDrive.TurnAssist((response+native)*scale,false);
+    }
     private void ApplyMechanisms()
     {
         bool enabled=BaseGameManager.Instance && BaseGameManager.Instance.RobotState==RobotState.Enabled;
         if(!enabled){if(frontFeedGuide)frontFeedGuide.enabled=false;if(crashBarDeflector)crashBarDeflector.enabled=true;feeding=false;readyDuration=0;wasFeedHeld=false;indexerHold.enabled=true;if(intakeHold)intakeHold.enabled=true;if(intakeFloor)intakeFloor.enabled=true;Set(intakeRollers,0);Set(conveyorRollers,0);Set(indexerRollers,0);Set(shooterRollers,0);return;}
+        StabilizeFlatGroundPitch();
         intakeRack.SetLinearTarget(rackTargetMeters/.0254f).withAxis(JointAxis.Z).useAutomaticStartingOffset();
         hoodServo.targetRotation=Quaternion.Inverse(Quaternion.Euler(Mathf.Clamp(hoodDegrees,0,17.64f),0,0));
         CalibrateReleasedFuel();
+    }
+    private void StabilizeFlatGroundPitch()
+    {
+        // Anti-dive support only on a level four-wheel contact patch, never over bumps or in flight.
+        if(driveWheels.Length!=4)return;
+        Vector3 normal=Vector3.zero;float low=float.PositiveInfinity,high=float.NegativeInfinity;
+        foreach(var wheel in driveWheels)
+        {
+            if(!wheel.GetGroundHit(out WheelHit hit) || Vector3.Dot(hit.normal,Vector3.up)<.995f)return;
+            normal+=hit.normal;low=Mathf.Min(low,hit.point.y);high=Mathf.Max(high,hit.point.y);
+        }
+        if(high-low>.015f)return;
+        Vector3 right=chassis.rotation*Vector3.right;
+        float error=Mathf.Asin(Mathf.Clamp(Vector3.Dot(Vector3.Cross(chassis.rotation*Vector3.up,normal.normalized),right),-1f,1f));
+        float damping=Vector3.Dot(chassis.angularVelocity,right);
+        chassis.AddTorque(right*Mathf.Clamp(error*6000f-damping*180f,-120f,120f),ForceMode.Force);
     }
     private void CalibrateReleasedFuel()
     {
